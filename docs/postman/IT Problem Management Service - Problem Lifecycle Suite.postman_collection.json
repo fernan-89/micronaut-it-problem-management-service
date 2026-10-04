@@ -1,0 +1,2347 @@
+{
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "exec": [
+          "// Automatically generate standard W3C traceparent (ADR-010) and X-Trace-Id",
+          "function generateHex(len) {",
+          "    let result = '';",
+          "    const chars = '0123456789abcdef';",
+          "    for (let i = 0; i < len; i++) {",
+          "        result += chars.charAt(Math.floor(Math.random() * chars.length));",
+          "    }",
+          "    return result;",
+          "}",
+          "const traceId = generateHex(32);",
+          "const spanId = generateHex(16);",
+          "const traceparent = `00-${traceId}-${spanId}-01`;",
+          "pm.request.headers.upsert({ key: 'traceparent', value: traceparent });",
+          "pm.request.headers.upsert({ key: 'X-Trace-Id', value: traceId });",
+          "pm.environment.set('currentTraceId', traceId);"
+        ],
+        "type": "text/javascript"
+      }
+    }
+  ],
+  "info": {
+    "_exporter_id": "39879181",
+    "_postman_id": "e3f5b7c9-4d6e-4a8f-9b1c-2d3e4f5a6b7c",
+    "description": "Enterprise-grade E2E Postman Suite for the IT Problem Management Service Domain (BIAN-aligned, ADR-001/005/013/019/030/031/032/033). Opens a problem with the priority the analyst chooses and links to an incident and an asset, updates it (priority and a fixing change), assigns it, starts the investigation, shows that a known error is refused until both the root cause and a workaround are on record, declares the known error, comments, resolves with the permanent fix, reopens with a reason (the fix is cleared, the count goes up), resolves again and closes, and reads the audit ledger in order. The collection is filtered by incident (\"which problems explain this incident\") and by asset. A second folder proves the service is staff only (a REQUESTER gets 403 ERR-PRB-00403 on every route). Negative cases cover validation, illegal transitions (409), closed problems refusing change, tenant isolation and the absence of DELETE, with RFC 7807 error_code assertions. It files its own problems under its own generated tenant id (prbOrganisationId), so it needs no organisationId from the Party Reference Data Directory.",
+    "name": "IT Problem Management Service - Problem Lifecycle Suite",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Health status is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Health Check (Aggregated)",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health"
+              ],
+              "raw": "{{base_url}}/health"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Liveness status is UP or UNKNOWN (no probe contributors registered)', () => pm.expect(['UP', 'UNKNOWN']).to.include(pm.response.json().status));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Liveness Probe",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "liveness"
+              ],
+              "raw": "{{base_url}}/health/liveness"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Readiness status is UP', () => pm.expect(pm.response.json().status).to.eql('UP'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Readiness Probe",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "health",
+                "readiness"
+              ],
+              "raw": "{{base_url}}/health/readiness"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Contains JVM metrics', () => pm.expect(pm.response.text()).to.include('jvm_memory'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Prometheus Metrics",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "prometheus"
+              ],
+              "raw": "{{base_url}}/prometheus"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Returns Swagger UI HTML', () => pm.expect(pm.response.text()).to.include('swagger-ui'));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "Swagger UI",
+          "request": {
+            "header": [],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "swagger-ui",
+                "index.html"
+              ],
+              "raw": "{{base_url}}/swagger-ui/index.html"
+            }
+          }
+        }
+      ],
+      "name": "00. Infrastructure & Telemetry"
+    },
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "prerequest",
+              "script": {
+                "exec": [
+                  "pm.environment.set('prbOrganisationId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('prbUserId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('prbAssigneeId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('prbIncidentId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('prbAssetId', pm.variables.replaceIn('{{$guid}}'));",
+                  "pm.environment.set('prbChangeId', pm.variables.replaceIn('{{$guid}}'));"
+                ],
+                "type": "text/javascript"
+              }
+            },
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "const json = pm.response.json();",
+                  "pm.test('NEW, priority as chosen, links kept', () => {",
+                  "    pm.expect(json.status).to.eql('NEW');",
+                  "    pm.expect(json.priority).to.eql('P2');",
+                  "    pm.expect(json.relatedIncidentIds).to.eql([pm.environment.get('prbIncidentId')]);",
+                  "    pm.expect(json.affectedAssetIds).to.eql([pm.environment.get('prbAssetId')]);",
+                  "});",
+                  "pm.environment.set('problemId', json.id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "01. Initiate Problem (NEW, P2, one related incident and one asset)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Switch drops packets\",\n  \"description\": \"Intermittent loss on floor 3\",\n  \"priority\": \"P2\",\n  \"relatedIncidentIds\": [\"{{prbIncidentId}}\"],\n  \"affectedAssetIds\": [\"{{prbAssetId}}\"]\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Same problem', () => pm.expect(pm.response.json().id).to.eql(pm.environment.get('problemId')));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "02. Retrieve Problem By ID",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Exactly this problem', () => pm.expect(pm.response.json().map(p => p.id)).to.eql([pm.environment.get('problemId')]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "03. Which problems explain this incident (collection, by incidentId)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "retrieve"
+              ],
+              "query": [
+                {
+                  "key": "incidentId",
+                  "value": "{{prbIncidentId}}"
+                }
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/retrieve?incidentId={{prbIncidentId}}"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Exactly this problem', () => pm.expect(pm.response.json().map(p => p.id)).to.eql([pm.environment.get('problemId')]));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "04. What is known about this asset (collection, by assetId and openOnly)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "retrieve"
+              ],
+              "query": [
+                {
+                  "key": "assetId",
+                  "value": "{{prbAssetId}}"
+                },
+                {
+                  "key": "openOnly",
+                  "value": "true"
+                }
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/retrieve?assetId={{prbAssetId}}&openOnly=true"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "05. Update: P1 and a fixing change linked (204)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Switch drops packets\",\n  \"description\": \"Intermittent loss on floor 3, now every hour\",\n  \"priority\": \"P1\",\n  \"relatedIncidentIds\": [\"{{prbIncidentId}}\"],\n  \"relatedChangeIds\": [\"{{prbChangeId}}\"],\n  \"affectedAssetIds\": [\"{{prbAssetId}}\"]\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is NEW', () => pm.expect(pm.response.json().status).to.eql('NEW'));",
+                  "pm.test('P1 and the change', () => { const json = pm.response.json(); pm.expect(json.priority).to.eql('P1'); pm.expect(json.relatedChangeIds).to.eql([pm.environment.get('prbChangeId')]); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "06. Retrieve (priority P1, the change linked)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "07. Assignment: name who investigates (204)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"assigneeId\": \"{{prbAssigneeId}}\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "assignment",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/assignment/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "08. Control: investigate (NEW -> UNDER_INVESTIGATION)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "investigate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/investigate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "09. Known error before the analysis is refused (400)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "known-error"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/known-error"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "10. Analysis: the root cause (204)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rootCause\": \"Firmware 2.1 leaks buffers under load\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "analysis",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/analysis/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "11. Known error with a cause but no workaround is refused (400)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "known-error"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/known-error"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "12. Analysis: the workaround (204)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"workaround\": \"Reboot the switch every Sunday\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "analysis",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/analysis/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "13. Control: known-error (UNDER_INVESTIGATION -> KNOWN_ERROR)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "known-error"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/known-error"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is KNOWN_ERROR', () => pm.expect(pm.response.json().status).to.eql('KNOWN_ERROR'));",
+                  "pm.test('Cause and workaround kept', () => { const json = pm.response.json(); pm.expect(json.rootCause).to.eql('Firmware 2.1 leaks buffers under load'); pm.expect(json.workaround).to.eql('Reboot the switch every Sunday'); });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "14. Retrieve (KNOWN_ERROR with the cause and the workaround)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "15. Comment on the problem",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"Vendor confirmed the leak\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "16. Control: resolve (KNOWN_ERROR -> RESOLVED, with the permanent fix)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"Upgraded the fleet to firmware 2.2\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "17. Control: reopen (RESOLVED -> UNDER_INVESTIGATION, with a reason)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"Still dropping packets after the upgrade\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "reopen"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/reopen"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "pm.test('Status is UNDER_INVESTIGATION', () => pm.expect(pm.response.json().status).to.eql('UNDER_INVESTIGATION'));",
+                  "pm.test('Reopened once, no resolution', () => { const json = pm.response.json(); pm.expect(json.reopenCount).to.eql(1); pm.expect(json.resolution).to.be.undefined; });"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "18. Retrieve (reopened once, the resolution cleared)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "19. Control: resolve again",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"Replaced the faulty line card\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 204 No Content', () => pm.response.to.have.status(204));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "20. Control: close (RESOLVED -> CLOSED, terminal)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "close"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/close"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 200 OK', () => pm.response.to.have.status(200));",
+                  "const json = pm.response.json();",
+                  "pm.test('Ledger reads in order', () => pm.expect(json.map(e => e.action)).to.eql(['INITIATED', 'UPDATED', 'ASSIGNED', 'INVESTIGATION_STARTED', 'ANALYSIS_RECORDED', 'ANALYSIS_RECORDED', 'KNOWN_ERROR_DECLARED', 'COMMENT_ADDED', 'RESOLVED', 'REOPENED', 'RESOLVED', 'CLOSED']));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "21. Retrieve Audit Ledger (every step, in order)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "audit-log",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/audit-log/retrieve"
+            }
+          }
+        }
+      ],
+      "name": "01. Problem Lifecycle & Known Error (BIAN Behavior Qualifiers)"
+    },
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "01. A REQUESTER cannot open a problem (403)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"priority\": \"P4\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{prbUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "02. A REQUESTER cannot read a problem (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{prbUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "03. A REQUESTER cannot list problems (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{prbUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "04. A REQUESTER cannot work a problem (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{prbUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "control",
+                "investigate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/control/investigate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "05. A REQUESTER cannot comment (403)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"hello\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{prbUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 403', () => pm.response.to.have.status(403));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00403', () => {",
+                  "    pm.expect(json.status).to.eql(403);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00403');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "06. A REQUESTER cannot read the audit trail (403)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{prbUserId}}"
+              },
+              {
+                "key": "X-Role",
+                "value": "REQUESTER"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "audit-log",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/audit-log/retrieve"
+            }
+          }
+        }
+      ],
+      "name": "02. Staff Only (REQUESTER refused)"
+    },
+    {
+      "item": [
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "01. Initiate - Blank Title (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"\",\n  \"description\": \"d\",\n  \"priority\": \"P3\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "02. Initiate - Missing Priority (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "03. Initiate - Unknown Priority Value (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"priority\": \"P9\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "04. Initiate - Missing X-Tenant-Id (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"priority\": \"P3\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 201 Created', () => pm.response.to.have.status(201));",
+                  "pm.environment.set('negProblemId', pm.response.json().id);"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "05. Setup: a fresh problem for the state-machine checks",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"Printer queue stalls\",\n  \"description\": \"Floor 2\",\n  \"priority\": \"P4\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "06. Known error before investigating is an illegal transition (409)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "control",
+                "known-error"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/control/known-error"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "07. Analysis before investigating is an illegal transition (409)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"rootCause\": \"cause\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "analysis",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/analysis/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "08. Resolve a NEW problem is an illegal transition (409)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"fixed\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "09. Resolve needs the resolution (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"resolution\": \"\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "control",
+                "resolve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/control/resolve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "10. Reopen needs a reason (400)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"reason\": \"\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "control",
+                "reopen"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/control/reopen"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "11. Update a CLOSED problem is refused (409)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"title\": \"t\",\n  \"description\": \"d\",\n  \"priority\": \"P3\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "update"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/update"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 409', () => pm.response.to.have.status(409));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00409', () => {",
+                  "    pm.expect(json.status).to.eql(409);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00409');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "12. Comment on a CLOSED problem is refused (409)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"late comment\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "13. Retrieve - Non-existent UUID (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "00000000-0000-0000-0000-000000000000",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/00000000-0000-0000-0000-000000000000/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 400 Bad Request', () => pm.response.to.have.status(400));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "14. Retrieve - Malformed UUID Path (400)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "not-a-uuid",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/not-a-uuid/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "15. Retrieve - Another tenant answers like a missing one (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{problemId}}",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{problemId}}/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "16. Investigate - Another tenant cannot work it (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "PUT",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "control",
+                "investigate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/control/investigate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "17. Comment - Another tenant (404)",
+          "request": {
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"text\": \"hello\"\n}"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "POST",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "comment",
+                "initiate"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/comment/initiate"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Status is 404', () => pm.response.to.have.status(404));",
+                  "const json = pm.response.json();",
+                  "pm.test('RFC 7807 error_code is ERR-PRB-00404', () => {",
+                  "    pm.expect(json.status).to.eql(404);",
+                  "    pm.expect(json.error_code).to.eql('ERR-PRB-00404');",
+                  "});"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "18. Audit log - Another tenant (404)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "00000000-0000-0000-0000-000000000001"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "GET",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}",
+                "audit-log",
+                "retrieve"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}/audit-log/retrieve"
+            }
+          }
+        },
+        {
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "pm.test('Not allowed', () => pm.expect([404, 405]).to.include(pm.response.code));"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "name": "19. Delete - There is no DELETE (404 or 405)",
+          "request": {
+            "header": [
+              {
+                "key": "X-Tenant-Id",
+                "value": "{{prbOrganisationId}}"
+              },
+              {
+                "key": "X-Executor",
+                "value": "{{executor}}"
+              }
+            ],
+            "method": "DELETE",
+            "url": {
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "it-problem-management",
+                "v1",
+                "{{negProblemId}}"
+              ],
+              "raw": "{{base_url}}/it-problem-management/v1/{{negProblemId}}"
+            }
+          }
+        }
+      ],
+      "name": "03. Negative Tests & Guarantees"
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8100"
+    }
+  ]
+}
